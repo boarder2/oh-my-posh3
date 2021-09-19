@@ -4,16 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
 type owm struct {
-	props       *properties
-	env         environmentInfo
-	temperature float64
-	weather     string
-	url         string
-	units       string
+	props        *properties
+	env          environmentInfo
+	temperature  float64
+	weather      string
+	url          string
+	units        string
+	cachepath    string
+	cachetimeout float64
 }
 
 const (
@@ -25,6 +28,8 @@ const (
 	UNITS Property = "units"
 	// CACHEFILE location to cache response
 	CACHEFILE Property = "cachefile"
+	// CACHETIMEOUT cache timeout
+	CACHETIMEOUT Property = "cachetimeout"
 )
 
 type weather struct {
@@ -71,21 +76,20 @@ func (d *owm) getResult() (*OWMDataResponse, error) {
 	units := d.props.getString(UNITS, "standard")
 	timeout := d.props.getInt(HTTPTimeout, DefaultHTTPTimeout)
 	cachefile := d.props.getString(CACHEFILE, "")
-
 	if cachefile != "" {
-		stats, err := os.Stat(cachefile)
-		if err == nil {
-			if time.Since(stats.ModTime()).Minutes() < 10 {
-				cachedData, err := os.ReadFile(cachefile)
-				if err == nil {
-					q := new(OWMDataResponse)
-					err := json.Unmarshal(cachedData, q)
-					if err == nil {
-						return q, nil
-					}
-				}
-			}
-		}
+		d.cachepath = filepath.Join(os.TempDir(), cachefile)
+	}
+	d.cachetimeout = d.props.getFloat64(CACHETIMEOUT, 10)
+
+	// check if data stored in cache
+	cachedData, err := d.getForecastsFromCache()
+	if err != nil {
+		return nil, err
+	}
+
+	// we got something from te cache
+	if cachedData != nil {
+		return cachedData, nil
 	}
 
 	url := fmt.Sprintf("http://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s", location, units, apikey)
@@ -99,11 +103,10 @@ func (d *owm) getResult() (*OWMDataResponse, error) {
 		return new(OWMDataResponse), err
 	}
 
-	if cachefile != "" {
-		err := os.WriteFile(cachefile, body, 0600)
-		if err != nil {
-			return new(OWMDataResponse), err
-		}
+	// persist new forecasts in cache
+	err = d.persistForecastsToCache(body)
+	if err != nil {
+		return nil, err
 	}
 
 	return q, nil
@@ -166,4 +169,45 @@ func (d *owm) setStatus() error {
 func (d *owm) init(props *properties, env environmentInfo) {
 	d.props = props
 	d.env = env
+}
+
+func (d *owm) getForecastsFromCache() (*OWMDataResponse, error) {
+	if d.cachepath == "" {
+		// cache not set, not an error
+		return nil, nil
+	}
+
+	stats, err := os.Stat(d.cachepath)
+	if err != nil {
+		return nil, err
+	}
+
+	if time.Since(stats.ModTime()).Minutes() > d.cachetimeout {
+		// cache time elapesed
+		return nil, nil
+	}
+
+	var cachedData []byte
+	cachedData, err = os.ReadFile(d.cachepath)
+	if err != nil {
+		return nil, err
+	}
+	q := new(OWMDataResponse)
+	err = json.Unmarshal(cachedData, q)
+	if err != nil {
+		return nil, err
+	}
+	return q, nil
+}
+
+func (d *owm) persistForecastsToCache(data []byte) error {
+	if d.cachepath == "" {
+		// cache not define, not an error
+		return nil
+	}
+	err := os.WriteFile(d.cachepath, data, 0600)
+	if err != nil {
+		return err
+	}
+	return nil
 }
