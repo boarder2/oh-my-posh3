@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -201,10 +200,9 @@ func TestOWMSegmentValidCachePathAndNotTimedout(t *testing.T) {
 	env := &MockedEnvironment{}
 	props := &properties{
 		values: map[Property]interface{}{
-			APIKEY:    "key",
-			LOCATION:  "AMSTERDAM,NL",
-			UNITS:     "metric",
-			CACHEFILE: filepath.Base(f.Name()),
+			APIKEY:   "key",
+			LOCATION: "AMSTERDAM,NL",
+			UNITS:    "metric",
 		},
 	}
 	o := &owm{
@@ -233,10 +231,9 @@ func TestOWMSegmentValidCachePathAndTimedout(t *testing.T) {
 	env := &MockedEnvironment{}
 	props := &properties{
 		values: map[Property]interface{}{
-			APIKEY:    "key",
-			LOCATION:  "AMSTERDAM,NL",
-			UNITS:     "metric",
-			CACHEFILE: filepath.Base(f.Name()),
+			APIKEY:   "key",
+			LOCATION: "AMSTERDAM,NL",
+			UNITS:    "metric",
 		},
 	}
 	o := &owm{
@@ -263,10 +260,9 @@ func TestOWMSegmentValidCachePathWrongData(t *testing.T) {
 	env := &MockedEnvironment{}
 	props := &properties{
 		values: map[Property]interface{}{
-			APIKEY:    "key",
-			LOCATION:  "AMSTERDAM,NL",
-			UNITS:     "metric",
-			CACHEFILE: filepath.Base(f.Name()),
+			APIKEY:   "key",
+			LOCATION: "AMSTERDAM,NL",
+			UNITS:    "metric",
 		},
 	}
 	o := &owm{
@@ -282,10 +278,9 @@ func TestOWMSegmentInvalidCachePath(t *testing.T) {
 	env := &MockedEnvironment{}
 	props := &properties{
 		values: map[Property]interface{}{
-			APIKEY:    "key",
-			LOCATION:  "AMSTERDAM,NL",
-			UNITS:     "metric",
-			CACHEFILE: "*[]\\/",
+			APIKEY:   "key",
+			LOCATION: "AMSTERDAM,NL",
+			UNITS:    "metric",
 		},
 	}
 	o := &owm{
