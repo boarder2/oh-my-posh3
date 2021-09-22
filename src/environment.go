@@ -78,7 +78,7 @@ type environmentInfo interface {
 	isWsl() bool
 	stackCount() int
 	getTerminalWidth() (int, error)
-	cache() simplecache
+	cache() *simplecache
 	close()
 }
 
@@ -144,7 +144,7 @@ type environment struct {
 	cwd           string
 	cmdCache      *commandCache
 	tracer        *tracer
-	simplecache   simplecache
+	simplecache   *simplecache
 	cacheFilePath string
 }
 
@@ -168,7 +168,7 @@ func (env *environment) init(args *args) {
 	if env.hasFolder(env.cacheFilePath) {
 		_ = c.loadFromFile(env.cacheFilePath)
 	}
-	env.simplecache = *c
+	env.simplecache = c
 }
 
 func (env *environment) getenv(key string) string {
@@ -470,7 +470,7 @@ func (env *environment) stackCount() int {
 	return *env.args.StackCount
 }
 
-func (env *environment) cache() simplecache {
+func (env *environment) cache() *simplecache {
 	return env.simplecache
 }
 

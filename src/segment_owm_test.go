@@ -3,15 +3,19 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 const (
-	OWM_APIURL = "http://api.openweathermap.org/data/2.5/weather?q=AMSTERDAM,NL&units=metric&appid=key"
+	OWMAPIURL = "http://api.openweathermap.org/data/2.5/weather?q=AMSTERDAM,NL&units=metric&appid=key"
 )
+
+type MockedCache struct {
+	mock.Mock
+}
 
 func TestOWMSegmentSingle(t *testing.T) {
 	cases := []struct {
@@ -45,7 +49,7 @@ func TestOWMSegmentSingle(t *testing.T) {
 			},
 		}
 
-		env.On("doGet", OWM_APIURL).Return([]byte(tc.JSONResponse), tc.Error)
+		env.On("doGet", OWMAPIURL).Return([]byte(tc.JSONResponse), tc.Error)
 
 		o := &owm{
 			props: props,
@@ -174,7 +178,7 @@ func TestOWMSegmentIcons(t *testing.T) {
 		response := fmt.Sprintf(`{"weather":[{"icon":"%s"}],"main":{"temp":20}}`, tc.IconID)
 		expectedString := fmt.Sprintf("%s (20°C)", tc.ExpectedIconString)
 
-		env.On("doGet", OWM_APIURL).Return([]byte(response), nil)
+		env.On("doGet", OWMAPIURL).Return([]byte(response), nil)
 
 		o := &owm{
 			props: props,
@@ -185,19 +189,12 @@ func TestOWMSegmentIcons(t *testing.T) {
 		assert.Equal(t, expectedString, o.string(), tc.Case)
 	}
 }
-func TestOWMSegmentValidCachePathAndNotTimedout(t *testing.T) {
+func TestOWMSegmentFromCache(t *testing.T) {
 	response := fmt.Sprintf(`{"weather":[{"icon":"%s"}],"main":{"temp":20}}`, "01d")
 	expectedString := fmt.Sprintf("%s (20°C)", "\ufa98")
 
-	// create a fake cache file
-	f, err := os.CreateTemp("", "")
-	assert.Equal(t, nil, err)
-	_, err = f.Write([]byte(response))
-	assert.Equal(t, nil, err)
-	f.Close()
-	defer os.Remove(f.Name()) // clean up
-
 	env := &MockedEnvironment{}
+	cache := &MockedCache{}
 	props := &properties{
 		values: map[Property]interface{}{
 			APIKEY:   "key",
@@ -209,87 +206,10 @@ func TestOWMSegmentValidCachePathAndNotTimedout(t *testing.T) {
 		props: props,
 		env:   env,
 	}
-	env.On("doGet", OWM_APIURL).Return(nil, nil)
+	cache.On("get").Return(response, true)
+	cache.On("put").Return()
+	env.On("cache").Return(cache)
 
 	assert.Nil(t, o.setStatus())
 	assert.Equal(t, expectedString, o.string())
-}
-
-func TestOWMSegmentValidCachePathAndTimedout(t *testing.T) {
-	cacheData := fmt.Sprintf(`{"weather":[{"icon":"%s"}],"main":{"temp":20}}`, "01d")
-	response := fmt.Sprintf(`{"weather":[{"icon":"%s"}],"main":{"temp":22}}`, "01d")
-	expectedString := fmt.Sprintf("%s (20°C)", "\ufa98")
-
-	// create a fake cache file
-	f, err := os.CreateTemp("", "")
-	assert.Equal(t, nil, err)
-	_, err = f.Write([]byte(cacheData))
-	assert.Equal(t, nil, err)
-	f.Close()
-	defer os.Remove(f.Name()) // clean up
-
-	env := &MockedEnvironment{}
-	props := &properties{
-		values: map[Property]interface{}{
-			APIKEY:   "key",
-			LOCATION: "AMSTERDAM,NL",
-			UNITS:    "metric",
-		},
-	}
-	o := &owm{
-		props: props,
-		env:   env,
-	}
-	env.On("doGet", OWM_APIURL).Return([]byte(response), nil)
-
-	assert.Nil(t, o.setStatus())
-	assert.Equal(t, expectedString, o.string())
-}
-
-func TestOWMSegmentValidCachePathWrongData(t *testing.T) {
-	cacheData := "hello world"
-
-	// create a fake cache file
-	f, err := os.CreateTemp("", "")
-	assert.Equal(t, nil, err)
-	_, err = f.Write([]byte(cacheData))
-	assert.Equal(t, nil, err)
-	f.Close()
-	defer os.Remove(f.Name()) // clean up
-
-	env := &MockedEnvironment{}
-	props := &properties{
-		values: map[Property]interface{}{
-			APIKEY:   "key",
-			LOCATION: "AMSTERDAM,NL",
-			UNITS:    "metric",
-		},
-	}
-	o := &owm{
-		props: props,
-		env:   env,
-	}
-
-	err = o.setStatus()
-	assert.EqualError(t, err, "invalid character 'h' looking for beginning of value")
-}
-
-func TestOWMSegmentInvalidCachePath(t *testing.T) {
-	env := &MockedEnvironment{}
-	props := &properties{
-		values: map[Property]interface{}{
-			APIKEY:   "key",
-			LOCATION: "AMSTERDAM,NL",
-			UNITS:    "metric",
-		},
-	}
-	o := &owm{
-		props: props,
-		env:   env,
-	}
-
-	expectedErrorMessage := fmt.Sprintf("CreateFile %s\\*[]: The filename, directory name, or volume label syntax is incorrect.", os.TempDir())
-
-	err := o.setStatus()
-	assert.EqualError(t, err, expectedErrorMessage)
 }

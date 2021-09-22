@@ -41,7 +41,7 @@ func TestSaveToFile(t *testing.T) {
 func TestLoadFromFileExpiredKey(t *testing.T) {
 	cache := New(5 * time.Minute)
 
-	cache.loadFromFile("omp431810701")
+	_ = cache.loadFromFile("omp431810701")
 
 	result, found := cache.get("my_key")
 

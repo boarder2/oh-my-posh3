@@ -157,9 +157,9 @@ func (env *MockedEnvironment) close() {
 	_ = env.Called(nil)
 }
 
-func (env *MockedEnvironment) cache() simplecache {
+func (env *MockedEnvironment) cache() *simplecache {
 	args := env.Called(nil)
-	return args.Get(0).(simplecache)
+	return args.Get(0).(*simplecache)
 }
 
 const (

@@ -70,11 +70,11 @@ func newCache(de time.Duration, m map[string]cacheEntry) *simplecache {
 	if de == 0 {
 		de = -1
 	}
-	c := &simplecache{
+	c := simplecache{
 		defaultExpiration: de,
 		items:             m,
 	}
-	return c
+	return &c
 }
 
 func New(defaultExpiration time.Duration) *simplecache {
