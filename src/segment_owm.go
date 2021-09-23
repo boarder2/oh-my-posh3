@@ -71,6 +71,8 @@ func (d *owm) getResult() (*OWMDataResponse, error) {
 	timeout := d.props.getInt(HTTPTimeout, DefaultHTTPTimeout)
 	d.cachetimeout = d.props.getFloat64(CACHETIMEOUT, 10)
 
+	d.url = fmt.Sprintf("http://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s", location, units, apikey)
+
 	c := d.env.cache()
 	// check if data stored in cache
 	val, found := c.get("owm_timeout")
@@ -84,8 +86,7 @@ func (d *owm) getResult() (*OWMDataResponse, error) {
 		return q, nil
 	}
 
-	url := fmt.Sprintf("http://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s", location, units, apikey)
-	body, err := d.env.doGet(url, timeout)
+	body, err := d.env.doGet(d.url, timeout)
 	if err != nil {
 		return new(OWMDataResponse), err
 	}
@@ -153,7 +154,6 @@ func (d *owm) setStatus() error {
 		icon = "\ue313"
 	}
 	d.weather = icon
-	d.url = url
 	d.units = units
 	return nil
 }
