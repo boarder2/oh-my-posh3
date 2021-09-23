@@ -3,17 +3,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"time"
 )
 
 type owm struct {
-	props       *properties
-	env         environmentInfo
-	temperature float64
-	weather     string
-	url         string
-	units       string
+	props        *properties
+	env          environmentInfo
+	temperature  float64
+	weather      string
+	url          string
+	units        string
+	cachetimeout float64
 }
 
 const (
@@ -23,8 +22,8 @@ const (
 	LOCATION Property = "location"
 	// UNITS openweathermap units
 	UNITS Property = "units"
-	// CACHEFILE location to cache response
-	CACHEFILE Property = "cachefile"
+	// CACHETIMEOUT cache timeout
+	CACHETIMEOUT Property = "cachetimeout"
 )
 
 type weather struct {
@@ -70,26 +69,24 @@ func (d *owm) getResult() (*OWMDataResponse, error) {
 	location := d.props.getString(LOCATION, "De Bilt,NL")
 	units := d.props.getString(UNITS, "standard")
 	timeout := d.props.getInt(HTTPTimeout, DefaultHTTPTimeout)
-	cachefile := d.props.getString(CACHEFILE, "")
+	d.cachetimeout = d.props.getFloat64(CACHETIMEOUT, 10)
 
-	if cachefile != "" {
-		stats, err := os.Stat(cachefile)
-		if err == nil {
-			if time.Since(stats.ModTime()).Minutes() < 10 {
-				cachedData, err := os.ReadFile(cachefile)
-				if err == nil {
-					q := new(OWMDataResponse)
-					err := json.Unmarshal(cachedData, q)
-					if err == nil {
-						return q, nil
-					}
-				}
-			}
+	d.url = fmt.Sprintf("http://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s", location, units, apikey)
+
+	c := d.env.cache()
+	// check if data stored in cache
+	val, found := c.get("owm_timeout")
+	// we got something from te cache
+	if found {
+		q := new(OWMDataResponse)
+		err := json.Unmarshal([]byte(val), q)
+		if err != nil {
+			return nil, err
 		}
+		return q, nil
 	}
 
-	url := fmt.Sprintf("http://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s", location, units, apikey)
-	body, err := d.env.doGet(url, timeout)
+	body, err := d.env.doGet(d.url, timeout)
 	if err != nil {
 		return new(OWMDataResponse), err
 	}
@@ -99,11 +96,10 @@ func (d *owm) getResult() (*OWMDataResponse, error) {
 		return new(OWMDataResponse), err
 	}
 
-	if cachefile != "" {
-		err := os.WriteFile(cachefile, body, 0600)
-		if err != nil {
-			return new(OWMDataResponse), err
-		}
+	// persist new forecasts in cache
+	c.put("owm_timeout", string(body), DefaultExpiration)
+	if err != nil {
+		return nil, err
 	}
 
 	return q, nil
@@ -158,7 +154,6 @@ func (d *owm) setStatus() error {
 		icon = "\ue313"
 	}
 	d.weather = icon
-	d.url = url
 	d.units = units
 	return nil
 }
