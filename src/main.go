@@ -56,6 +56,7 @@ type args struct {
 	Author         *string
 	CursorPadding  *int
 	RPromptOffset  *int
+	BGColor        *string
 	StackCount     *int
 	Command        *string
 	PrintTransient *bool
@@ -139,6 +140,10 @@ func main() {
 			"rprompt-offset",
 			40,
 			"Offset the right prompt with x when using --export-img"),
+		BGColor: flag.String(
+			"bg-color",
+			"#151515",
+			"Set the background color when using --export-img"),
 		StackCount: flag.Int(
 			"stack-count",
 			0,
@@ -155,7 +160,7 @@ func main() {
 	flag.Parse()
 	env := &environment{}
 	env.init(args)
-	defer env.tracer.close()
+	defer env.close()
 	if *args.Millis {
 		fmt.Print(time.Now().UnixNano() / 1000000)
 		return
@@ -224,6 +229,7 @@ func main() {
 		author:        *args.Author,
 		cursorPadding: *args.CursorPadding,
 		rPromptOffset: *args.RPromptOffset,
+		bgColor:       *args.BGColor,
 		ansi:          ansi,
 	}
 	imageCreator.init()
@@ -234,8 +240,24 @@ func main() {
 	}
 }
 
-func initShell(shell, configFile string) string {
+func getExecutablePath(shell string) (string, error) {
 	executable, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	// On Windows, it fails when the excutable is called in MSYS2 for example
+	// which uses unix style paths to resolve the executable's location.
+	// PowerShell knows how to resolve both, so we can swap this without any issue.
+	executable = strings.ReplaceAll(executable, "\\", "/")
+	switch shell {
+	case bash, zsh:
+		return strings.ReplaceAll(executable, " ", "\\ "), nil
+	}
+	return executable, nil
+}
+
+func initShell(shell, configFile string) string {
+	executable, err := getExecutablePath(shell)
 	if err != nil {
 		return noExe
 	}
@@ -250,11 +272,7 @@ func initShell(shell, configFile string) string {
 }
 
 func printShellInit(shell, configFile string) string {
-	executable, err := os.Executable()
-	// On Windows, it fails when the excutable is called in MSYS2 for example
-	// which uses unix style paths to resolve the executable's location.
-	// PowerShell knows how to resolve both, so we can swap this without any issue.
-	executable = strings.ReplaceAll(executable, "\\", "/")
+	executable, err := getExecutablePath(shell)
 	if err != nil {
 		return noExe
 	}

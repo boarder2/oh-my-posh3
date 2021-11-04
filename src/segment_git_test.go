@@ -14,6 +14,8 @@ const (
 func TestEnabledGitNotFound(t *testing.T) {
 	env := new(MockedEnvironment)
 	env.On("hasCommand", "git").Return(false)
+	env.On("getRuntimeGOOS", nil).Return("")
+	env.On("isWsl", nil).Return(false)
 	g := &git{
 		env: env,
 	}
@@ -23,6 +25,8 @@ func TestEnabledGitNotFound(t *testing.T) {
 func TestEnabledInWorkingDirectory(t *testing.T) {
 	env := new(MockedEnvironment)
 	env.On("hasCommand", "git").Return(true)
+	env.On("getRuntimeGOOS", nil).Return("")
+	env.On("isWsl", nil).Return(false)
 	fileInfo := &fileInfo{
 		path:         "/dir/hello",
 		parentFolder: "/dir",
@@ -39,6 +43,8 @@ func TestEnabledInWorkingDirectory(t *testing.T) {
 func TestEnabledInWorkingTree(t *testing.T) {
 	env := new(MockedEnvironment)
 	env.On("hasCommand", "git").Return(true)
+	env.On("getRuntimeGOOS", nil).Return("")
+	env.On("isWsl", nil).Return(false)
 	fileInfo := &fileInfo{
 		path:         "/dir/hello",
 		parentFolder: "/dir",
@@ -58,6 +64,7 @@ func TestGetGitOutputForCommand(t *testing.T) {
 	commandArgs := []string{"symbolic-ref", "--short", "HEAD"}
 	want := "je suis le output"
 	env := new(MockedEnvironment)
+	env.On("isWsl", nil).Return(false)
 	env.On("runCommand", "git", append(args, commandArgs...)).Return(want, nil)
 	env.On("getRuntimeGOOS", nil).Return("unix")
 	g := &git{
@@ -86,11 +93,13 @@ type detachedContext struct {
 	sequencerTodo string
 	merge         bool
 	mergeHEAD     string
+	mergeMsgStart string
 	status        string
 }
 
 func setupHEADContextEnv(context *detachedContext) *git {
 	env := new(MockedEnvironment)
+	env.On("isWsl", nil).Return(false)
 	env.On("hasFolder", "/rebase-merge").Return(context.rebaseMerge)
 	env.On("hasFolder", "/rebase-apply").Return(context.rebaseApply)
 	env.On("hasFolder", "/sequencer").Return(context.sequencer)
@@ -103,7 +112,7 @@ func setupHEADContextEnv(context *detachedContext) *git {
 	env.On("getFileContent", "/rebase-apply/head-name").Return(context.origin)
 	env.On("getFileContent", "/CHERRY_PICK_HEAD").Return(context.cherryPickSHA)
 	env.On("getFileContent", "/REVERT_HEAD").Return(context.revertSHA)
-	env.On("getFileContent", "/MERGE_MSG").Return(fmt.Sprintf("Merge branch '%s' into %s", context.mergeHEAD, context.onto))
+	env.On("getFileContent", "/MERGE_MSG").Return(fmt.Sprintf("%s '%s' into %s", context.mergeMsgStart, context.mergeHEAD, context.onto))
 	env.On("getFileContent", "/sequencer/todo").Return(context.sequencerTodo)
 	env.On("getFileContent", "/HEAD").Return(context.branchName)
 	env.On("hasFilesInDir", "", "CHERRY_PICK_HEAD").Return(context.cherryPick)
@@ -302,8 +311,21 @@ func TestGetGitHEADContextSequencerRevertOnTag(t *testing.T) {
 func TestGetGitHEADContextMerge(t *testing.T) {
 	want := "\ue727 \ue0a0feat into \ue0a0main"
 	context := &detachedContext{
-		merge:     true,
-		mergeHEAD: "feat",
+		merge:         true,
+		mergeHEAD:     "feat",
+		mergeMsgStart: "Merge branch",
+	}
+	g := setupHEADContextEnv(context)
+	got := g.getGitHEADContext("main")
+	assert.Equal(t, want, got)
+}
+
+func TestGetGitHEADContextMergeRemote(t *testing.T) {
+	want := "\ue727 \ue0a0feat into \ue0a0main"
+	context := &detachedContext{
+		merge:         true,
+		mergeHEAD:     "feat",
+		mergeMsgStart: "Merge remote-tracking branch",
 	}
 	g := setupHEADContextEnv(context)
 	got := g.getGitHEADContext("main")
@@ -311,11 +333,36 @@ func TestGetGitHEADContextMerge(t *testing.T) {
 }
 
 func TestGetGitHEADContextMergeTag(t *testing.T) {
+	want := "\ue727 \uf412v7.8.9 into \ue0a0main"
+	context := &detachedContext{
+		merge:         true,
+		mergeHEAD:     "v7.8.9",
+		mergeMsgStart: "Merge tag",
+	}
+	g := setupHEADContextEnv(context)
+	got := g.getGitHEADContext("main")
+	assert.Equal(t, want, got)
+}
+
+func TestGetGitHEADContextMergeCommit(t *testing.T) {
+	want := "\ue727 \uf4178d7e869 into \ue0a0main"
+	context := &detachedContext{
+		merge:         true,
+		mergeHEAD:     "8d7e869",
+		mergeMsgStart: "Merge commit",
+	}
+	g := setupHEADContextEnv(context)
+	got := g.getGitHEADContext("main")
+	assert.Equal(t, want, got)
+}
+
+func TestGetGitHEADContextMergeIntoTag(t *testing.T) {
 	want := "\ue727 \ue0a0feat into \uf412v3.4.6"
 	context := &detachedContext{
-		tagName:   "v3.4.6",
-		merge:     true,
-		mergeHEAD: "feat",
+		tagName:       "v3.4.6",
+		merge:         true,
+		mergeHEAD:     "feat",
+		mergeMsgStart: "Merge branch",
 	}
 	g := setupHEADContextEnv(context)
 	got := g.getGitHEADContext("")
@@ -491,6 +538,7 @@ func TestParseGitStatsInvalidLine(t *testing.T) {
 
 func bootstrapUpstreamTest(upstream string) *git {
 	env := &MockedEnvironment{}
+	env.On("isWsl", nil).Return(false)
 	env.On("runCommand", "git", []string{"--no-optional-locks", "-c", "core.quotepath=false", "-c", "color.status=false", "remote", "get-url", "origin"}).Return(upstream, nil)
 	env.On("getRuntimeGOOS", nil).Return("unix")
 	props := &properties{
@@ -858,6 +906,39 @@ func TestGetBranchStatus(t *testing.T) {
 	}
 }
 
+func TestShouldIgnoreRootRepository(t *testing.T) {
+	cases := []struct {
+		Case     string
+		Dir      string
+		Expected bool
+	}{
+		{Case: "inside excluded", Dir: "/home/bill/repo"},
+		{Case: "oustide excluded", Dir: "/home/melinda"},
+		{Case: "excluded exact match", Dir: "/home/gates", Expected: true},
+		{Case: "excluded inside match", Dir: "/home/gates/bill", Expected: true},
+	}
+
+	for _, tc := range cases {
+		props := map[Property]interface{}{
+			ExcludeFolders: []string{
+				"/home/bill",
+				"/home/gates.*",
+			},
+		}
+		env := new(MockedEnvironment)
+		env.On("homeDir", nil).Return("/home/bill")
+		env.On("getRuntimeGOOS", nil).Return(windowsPlatform)
+		git := &git{
+			props: &properties{
+				values: props,
+			},
+			env: env,
+		}
+		got := git.shouldIgnoreRootRepository(tc.Dir)
+		assert.Equal(t, tc.Expected, got, tc.Case)
+	}
+}
+
 func TestTruncateBranch(t *testing.T) {
 	cases := []struct {
 		Case      string
@@ -881,5 +962,31 @@ func TestTruncateBranch(t *testing.T) {
 			},
 		}
 		assert.Equal(t, tc.Expected, g.truncateBranch(tc.Branch), tc.Case)
+	}
+}
+
+func TestGetGitCommand(t *testing.T) {
+	cases := []struct {
+		Case     string
+		Expected string
+		IsWSL    bool
+		GOOS     string
+		CWD      string
+	}{
+		{Case: "On Windows", Expected: "git.exe", GOOS: windowsPlatform},
+		{Case: "Non Windows", Expected: "git"},
+		{Case: "Iside WSL, non shared", IsWSL: true, Expected: "git"},
+		{Case: "Iside WSL, shared", Expected: "git.exe", IsWSL: true, CWD: "/mnt/bill"},
+	}
+
+	for _, tc := range cases {
+		env := new(MockedEnvironment)
+		env.On("isWsl", nil).Return(tc.IsWSL)
+		env.On("getRuntimeGOOS", nil).Return(tc.GOOS)
+		env.On("getcwd", nil).Return(tc.CWD)
+		g := &git{
+			env: env,
+		}
+		assert.Equal(t, tc.Expected, g.getGitCommand(), tc.Case)
 	}
 }

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/distatus/battery"
-	"github.com/shirou/gopsutil/host"
 	"github.com/shirou/gopsutil/process"
 )
 
@@ -49,6 +48,14 @@ type fileInfo struct {
 	isDir        bool
 }
 
+type cache interface {
+	init(home string)
+	close()
+	get(key string) (string, bool)
+	// ttl in seconds
+	set(key, value string, ttl int64)
+}
+
 type environmentInfo interface {
 	getenv(key string) string
 	getcwd() string
@@ -78,27 +85,26 @@ type environmentInfo interface {
 	isWsl() bool
 	stackCount() int
 	getTerminalWidth() (int, error)
+	getCachePath() string
+	cache() cache
+	close()
 }
 
 type commandCache struct {
-	commands map[string]string
-	lock     sync.RWMutex
+	commands *concurrentMap
 }
 
 func (c *commandCache) set(command, path string) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	c.commands[command] = path
+	c.commands.set(command, path)
 }
 
 func (c *commandCache) get(command string) (string, bool) {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	if cmd, ok := c.commands[command]; ok {
-		command = cmd
-		return command, true
+	cmd, found := c.commands.get(command)
+	if !found {
+		return "", false
 	}
-	return "", false
+	command, ok := cmd.(string)
+	return command, ok
 }
 
 type tracer struct {
@@ -137,25 +143,34 @@ func (t *tracer) trace(start time.Time, function string, args ...string) {
 	log.Println(trace)
 }
 
+func (t *tracer) error(message string) {
+	if !t.debug {
+		return
+	}
+	trace := fmt.Sprintf("error: %s", message)
+	log.Println(trace)
+}
+
 type environment struct {
-	args     *args
-	cwd      string
-	cmdCache *commandCache
-	tracer   *tracer
+	args      *args
+	cwd       string
+	cmdCache  *commandCache
+	fileCache *fileCache
+	tracer    *tracer
 }
 
 func (env *environment) init(args *args) {
 	env.args = args
-	cmdCache := &commandCache{
-		commands: make(map[string]string),
-		lock:     sync.RWMutex{},
+	env.cmdCache = &commandCache{
+		commands: newConcurrentMap(),
 	}
-	env.cmdCache = cmdCache
 	tracer := &tracer{
 		debug: *args.Debug,
 	}
 	tracer.init(env.homeDir())
 	env.tracer = tracer
+	env.fileCache = &fileCache{}
+	env.fileCache.init(env.getCachePath())
 }
 
 func (env *environment) getenv(key string) string {
@@ -178,6 +193,7 @@ func (env *environment) getcwd() string {
 	}
 	dir, err := os.Getwd()
 	if err != nil {
+		env.tracer.error(err.Error())
 		return ""
 	}
 	env.cwd = correctPath(dir)
@@ -190,6 +206,7 @@ func (env *environment) hasFiles(pattern string) bool {
 	pattern = cwd + env.getPathSeperator() + pattern
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
+		env.tracer.error(err.Error())
 		return false
 	}
 	return len(matches) > 0
@@ -200,6 +217,7 @@ func (env *environment) hasFilesInDir(dir, pattern string) bool {
 	pattern = dir + env.getPathSeperator() + pattern
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
+		env.tracer.error(err.Error())
 		return false
 	}
 	return len(matches) > 0
@@ -215,6 +233,7 @@ func (env *environment) getFileContent(file string) string {
 	defer env.tracer.trace(time.Now(), "getFileContent", file)
 	content, err := ioutil.ReadFile(file)
 	if err != nil {
+		env.tracer.error(err.Error())
 		return ""
 	}
 	return string(content)
@@ -224,6 +243,7 @@ func (env *environment) getFoldersList(path string) []string {
 	defer env.tracer.trace(time.Now(), "getFoldersList", path)
 	content, err := os.ReadDir(path)
 	if err != nil {
+		env.tracer.error(err.Error())
 		return nil
 	}
 	var folderNames []string
@@ -253,6 +273,7 @@ func (env *environment) getHostName() (string, error) {
 	defer env.tracer.trace(time.Now(), "getHostName")
 	hostName, err := os.Hostname()
 	if err != nil {
+		env.tracer.error(err.Error())
 		return "", err
 	}
 	return cleanHostName(hostName), nil
@@ -261,16 +282,6 @@ func (env *environment) getHostName() (string, error) {
 func (env *environment) getRuntimeGOOS() string {
 	defer env.tracer.trace(time.Now(), "getRuntimeGOOS")
 	return runtime.GOOS
-}
-
-func (env *environment) getPlatform() string {
-	defer env.tracer.trace(time.Now(), "getPlatform")
-	if runtime.GOOS == windowsPlatform {
-		return windowsPlatform
-	}
-	p, _, _, _ := host.PlatformInformation()
-
-	return p
 }
 
 func (env *environment) runCommand(command string, args ...string) (string, error) {
@@ -308,6 +319,7 @@ func (env *environment) runCommand(command string, args ...string) (string, erro
 	err := cmd.Start()
 	if err != nil {
 		errorStr := fmt.Sprintf("cmd.Start() failed with '%s'", err)
+		env.tracer.error(errorStr)
 		return "", errors.New(errorStr)
 	}
 	// cmd.Wait() should be called only after we finish reading
@@ -323,6 +335,7 @@ func (env *environment) runCommand(command string, args ...string) (string, erro
 	wg.Wait()
 	err = cmd.Wait()
 	if err != nil {
+		env.tracer.error(err.Error())
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return "", &commandError{
 				err:      exitErr.Error(),
@@ -331,7 +344,9 @@ func (env *environment) runCommand(command string, args ...string) (string, erro
 		}
 	}
 	if stdoutErr != nil || stderrErr != nil {
-		return "", errors.New("failed to capture stdout or stderr")
+		errString := "failed to capture stdout or stderr"
+		env.tracer.error(errString)
+		return "", errors.New(errString)
 	}
 	stderrStr := normalizeOutput(stderr)
 	if len(stderrStr) > 0 {
@@ -356,6 +371,7 @@ func (env *environment) hasCommand(command string) bool {
 		env.cmdCache.set(command, path)
 		return true
 	}
+	env.tracer.error(err.Error())
 	return false
 }
 
@@ -379,7 +395,35 @@ func (env *environment) getArgs() *args {
 
 func (env *environment) getBatteryInfo() ([]*battery.Battery, error) {
 	defer env.tracer.trace(time.Now(), "getBatteryInfo")
-	return battery.GetAll()
+	batteries, err := battery.GetAll()
+	// actual error, return it
+	if err != nil && len(batteries) == 0 {
+		env.tracer.error(err.Error())
+		return nil, err
+	}
+	// there are no batteries found
+	if len(batteries) == 0 {
+		return nil, &noBatteryError{}
+	}
+	// some batteries fail to get retrieved, filter them out if present
+	validBatteries := []*battery.Battery{}
+	for _, batt := range batteries {
+		if batt != nil {
+			validBatteries = append(validBatteries, batt)
+		}
+	}
+	unableToRetrieveBatteryInfo := "A device which does not exist was specified."
+	// when battery info fails to get retrieved but there is at least one valid battery, return it without error
+	if len(validBatteries) > 0 && err != nil && strings.Contains(err.Error(), unableToRetrieveBatteryInfo) {
+		return validBatteries, nil
+	}
+	// another error occurred (possibly unmapped use-case), return it
+	if err != nil {
+		env.tracer.error(err.Error())
+		return nil, err
+	}
+	// everything is fine
+	return validBatteries, nil
 }
 
 func (env *environment) getShellName() string {
@@ -391,6 +435,7 @@ func (env *environment) getShellName() string {
 	p, _ := process.NewProcess(int32(pid))
 	name, err := p.Name()
 	if err != nil {
+		env.tracer.error(err.Error())
 		return unknown
 	}
 	if name == "cmd.exe" {
@@ -398,6 +443,7 @@ func (env *environment) getShellName() string {
 		name, err = p.Name()
 	}
 	if err != nil {
+		env.tracer.error(err.Error())
 		return unknown
 	}
 	// Cache the shell value to speed things up.
@@ -415,11 +461,13 @@ func (env *environment) doGet(url string, timeout int) ([]byte, error) {
 	}
 	response, err := client.Do(request)
 	if err != nil {
+		env.tracer.error(err.Error())
 		return nil, err
 	}
 	defer response.Body.Close()
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
+		env.tracer.error(err.Error())
 		return nil, err
 	}
 	return body, nil
@@ -445,6 +493,7 @@ func (env *environment) hasParentFilePath(path string) (*fileInfo, error) {
 			currentFolder = dir
 			continue
 		}
+		env.tracer.error(err.Error())
 		return nil, errors.New("no match at root level")
 	}
 }
@@ -455,6 +504,15 @@ func (env *environment) stackCount() int {
 		return 0
 	}
 	return *env.args.StackCount
+}
+
+func (env *environment) cache() cache {
+	return env.fileCache
+}
+
+func (env *environment) close() {
+	env.fileCache.close()
+	env.tracer.close()
 }
 
 func cleanHostName(hostName string) string {
@@ -469,4 +527,20 @@ func cleanHostName(hostName string) string {
 		}
 	}
 	return hostName
+}
+
+func returnOrBuildCachePath(path string) string {
+	// validate root path
+	if _, err := os.Stat(path); err != nil {
+		return ""
+	}
+	// validate oh-my-posh folder, if non existent, create it
+	cachePath := path + "/oh-my-posh"
+	if _, err := os.Stat(cachePath); err == nil {
+		return cachePath
+	}
+	if err := os.Mkdir(cachePath, 0755); err != nil {
+		return ""
+	}
+	return cachePath
 }

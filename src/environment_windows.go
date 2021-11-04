@@ -3,10 +3,11 @@
 package main
 
 import (
-	"errors"
 	"os"
+	"syscall"
 	"time"
 
+	"github.com/Azure/go-ansiterm/winterm"
 	"golang.org/x/sys/windows"
 )
 
@@ -26,6 +27,7 @@ func (env *environment) isRunningAsRoot() bool {
 		0, 0, 0, 0, 0, 0,
 		&sid)
 	if err != nil {
+		env.tracer.error(err.Error())
 		return false
 	}
 	defer func() {
@@ -39,6 +41,7 @@ func (env *environment) isRunningAsRoot() bool {
 
 	member, err := token.IsMember(sid)
 	if err != nil {
+		env.tracer.error(err.Error())
 		return false
 	}
 
@@ -70,5 +73,29 @@ func (env *environment) isWsl() bool {
 
 func (env *environment) getTerminalWidth() (int, error) {
 	defer env.tracer.trace(time.Now(), "getTerminalWidth")
-	return 0, errors.New("Unsupported on Windows")
+	handle, err := syscall.Open("CONOUT$", syscall.O_RDWR, 0)
+	if err != nil {
+		env.tracer.error(err.Error())
+		return 0, err
+	}
+	info, err := winterm.GetConsoleScreenBufferInfo(uintptr(handle))
+	if err != nil {
+		env.tracer.error(err.Error())
+		return 0, err
+	}
+	// return int(float64(info.Size.X) * 0.57), nil
+	return int(info.Size.X), nil
+}
+
+func (env *environment) getPlatform() string {
+	return windowsPlatform
+}
+
+func (env *environment) getCachePath() string {
+	defer env.tracer.trace(time.Now(), "getCachePath")
+	// get LOCALAPPDATA if present
+	if cachePath := returnOrBuildCachePath(env.getenv("LOCALAPPDATA")); len(cachePath) != 0 {
+		return cachePath
+	}
+	return env.homeDir()
 }

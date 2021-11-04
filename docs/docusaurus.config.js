@@ -1,3 +1,5 @@
+const path = require('path');
+
 module.exports = {
   title: "Oh My Posh",
   tagline: "A prompt theme engine for any shell.",
@@ -7,8 +9,8 @@ module.exports = {
   organizationName: "jandedobbeleer",
   projectName: "oh-my-posh",
   onBrokenLinks: "ignore",
+  plugins: [path.resolve(__dirname, 'plugins', 'appinsights')],
   themeConfig: {
-    sidebarCollapsible: false,
     prism: {
       theme: require("prism-react-renderer/themes/duotoneLight"),
       darkTheme: require("prism-react-renderer/themes/oceanicNext"),
@@ -38,7 +40,8 @@ module.exports = {
         },
         {
           href: "https://github.com/jandedobbeleer/oh-my-posh",
-          label: "GitHub",
+          className: 'header-github-link',
+          'aria-label': 'GitHub repository',
           position: "right",
         },
       ],
@@ -91,6 +94,14 @@ module.exports = {
         },
       ],
       copyright: `Copyright © ${new Date().getFullYear()} <a href="https://github.com/sponsors/JanDeDobbeleer" target="_blank">Jan De Dobbeleer</a> and <a href="/docs/contributors">contributors</a>.`,
+    },
+    appInsights: {
+      instrumentationKey: "72804848-dc30-4856-8245-4fa1450b041f",
+    },
+    algolia: {
+      appId: 'BH4D9OD16A',
+      apiKey: '539391a0be386508c6a80cb2bca8ebfe',
+      indexName: 'ohmyposh',
     },
   },
   presets: [

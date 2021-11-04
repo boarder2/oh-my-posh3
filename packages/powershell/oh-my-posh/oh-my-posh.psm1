@@ -5,7 +5,16 @@
 
 # Powershell doesn't default to UTF8 just yet, so we're forcing it as there are too many problems
 # that pop up when we don't
-[console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
+if ($ExecutionContext.SessionState.LanguageMode -ne "ConstrainedLanguage") {
+    [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
+} elseif ($env:POSH_CONSTRAINED_LANGUAGE -ne 1) {
+    Write-Host "[WARNING] ConstrainedLanguage mode detected, unable to set console to UTF-8.
+When using PowerShell in ConstrainedLanguage mode, please set the
+console mode manually to UTF-8. See here for more information:
+https://ohmyposh.dev/docs/faq#powershell-running-in-constrainedlanguage-mode
+"
+    $env:POSH_CONSTRAINED_LANGUAGE = 1
+}
 
 function Get-PoshCommand {
     if ($IsMacOS) {
@@ -14,15 +23,22 @@ function Get-PoshCommand {
     if ($IsLinux) {
         # this is rather hacky but there's no other way for the time being
         $arch = uname -m
-        if (($arch -eq 'aarch64') -or ($arch -eq 'armv7l')) {
+        if ($arch -eq 'aarch64') {
+            return "$PSScriptRoot/bin/posh-linux-arm64"
+        }
+        if ($arch -eq 'armv7l') {
             return "$PSScriptRoot/bin/posh-linux-arm"
         }
         return "$PSScriptRoot/bin/posh-linux-amd64"
     }
-    if ([Environment]::Is64BitOperatingSystem) {
-        return "$PSScriptRoot/bin/posh-windows-amd64.exe"
+    $arch = (Get-CimInstance -Class Win32_Processor -Property Architecture).Architecture
+    switch ($arch) {
+        0 { return "$PSScriptRoot/bin/posh-windows-386.exe" } # x86
+        5 { return "$PSScriptRoot/bin/posh-windows-arm64.exe" } # ARM
+        9 { return "$PSScriptRoot/bin/posh-windows-amd64.exe" } # x64
+        12 { return "$PSScriptRoot/bin/posh-windows-amd64.exe" } # x64 emulated on Surface Pro X
     }
-    return "$PSScriptRoot/bin/posh-windows-386.exe"
+    throw "Oh My Posh: Unsupported architecture: $arch"
 }
 
 function Set-ExecutablePermissions {
@@ -72,6 +88,30 @@ function Set-PoshPrompt {
 
 <#
 .SYNOPSIS
+    Returns an ansi formatted hyperlink
+    if name not set, uri is used as the name of the hyperlink
+.EXAMPLE
+    Get-Hyperlink
+#>
+function Get-Hyperlink {
+    param(
+        [Parameter(Mandatory)]
+        [string]$uri,
+        [string]$name
+    )
+    $esc = [char]27
+    if ("" -eq $name) {
+        $name = $uri
+    }
+    if ($env:WSL_DISTRO_NAME -ne $null){
+        # wsl conversion if needed
+        $uri= &wslpath -m $uri
+    }
+    return "$esc]8;;file://$uri$esc\$name$esc]8;;$esc\"
+}
+
+<#
+.SYNOPSIS
     Display a preview or a list of installed themes.
 .EXAMPLE
     Get-PoshThemes
@@ -84,7 +124,6 @@ function Get-PoshThemes() {
         [Parameter(Mandatory = $false, HelpMessage = "List themes path")]
         $list
     )
-    $esc = [char]27
     $consoleWidth = $Host.UI.RawUI.WindowSize.Width
     $logo = @'
    __  _____ _      ___  ___       ______         _      __
@@ -105,7 +144,7 @@ function Get-PoshThemes() {
     else {
         $poshCommand = Get-PoshCommand
         $themes | ForEach-Object -Process {
-            Write-Host "Theme: $esc[1m$($_.BaseName.Replace('.omp', ''))$esc[0m"
+            Write-Host "Theme: $(Get-Hyperlink -uri $_.fullname -name $_.BaseName.Replace('.omp', ''))"
             Write-Host ""
             & $poshCommand -config $($_.FullName) -pwd $PWD
             Write-Host ""
@@ -113,7 +152,7 @@ function Get-PoshThemes() {
     }
     Write-Host ("-" * $consoleWidth)
     Write-Host ""
-    Write-Host "Themes location: $PSScriptRoot\themes"
+    Write-Host "Themes location: $(Get-Hyperlink -uri "$PSScriptRoot/themes")"
     Write-Host ""
     Write-Host "To change your theme, use the Set-PoshPrompt command. Example:"
     Write-Host "  Set-PoshPrompt -Theme jandedobbeleer"

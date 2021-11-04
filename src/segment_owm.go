@@ -4,27 +4,31 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
 )
 
 type owm struct {
 	props       *properties
 	env         environmentInfo
-	temperature float64
-	weather     string
-	url         string
+	Temperature float64
+	Weather     string
+	URL         string
 	units       string
+	UnitIcon    string
 }
 
 const (
-	// APIKEY openweathermap api key
-	APIKEY Property = "apikey"
-	// LOCATION openweathermap location
-	LOCATION Property = "location"
-	// UNITS openweathermap units
-	UNITS Property = "units"
-	// CACHEFILE location to cache response
-	CACHEFILE Property = "cachefile"
+	// APIKey openweathermap api key
+	APIKey Property = "apikey"
+	// Location openweathermap location
+	Location Property = "location"
+	// Units openweathermap units
+	Units Property = "units"
+	// CacheTimeout cache timeout
+	CacheTimeout Property = "cache_timeout"
+	// CacheKeyResponse key used when caching the response
+	CacheKeyResponse string = "owm_response"
+	// CacheKeyURL key used when caching the url responsible for the response
+	CacheKeyURL string = "owm_url"
 )
 
 type weather struct {
@@ -36,7 +40,7 @@ type temperature struct {
 	Value float64 `json:"temp"`
 }
 
-type OWMDataResponse struct {
+type owmDataResponse struct {
 	Data        []weather `json:"weather"`
 	temperature `json:"main"`
 }
@@ -47,54 +51,75 @@ func (d *owm) enabled() bool {
 }
 
 func (d *owm) string() string {
-	unitIcon := "\ue33e"
+	d.UnitIcon = "\ue33e"
 	switch d.units {
 	case "imperial":
-		unitIcon = "°F" // \ue341"
+		d.UnitIcon = "°F" // \ue341"
 	case "metric":
-		unitIcon = "°C" // \ue339"
+		d.UnitIcon = "°C" // \ue339"
 	case "":
 		fallthrough
 	case "standard":
-		unitIcon = "°K" // \ufa05"
+		d.UnitIcon = "°K" // \ufa05"
 	}
-	text := fmt.Sprintf("%s (%g%s)", d.weather, d.temperature, unitIcon)
-	if d.props.getBool(EnableHyperlink, false) {
-		text = fmt.Sprintf("[%s](%s)", text, d.url)
+	segmentTemplate := d.props.getString(SegmentTemplate, "{{.Weather}} ({{.Temperature}}{{.UnitIcon}})")
+	template := &textTemplate{
+		Template: segmentTemplate,
+		Context:  d,
+		Env:      d.env,
 	}
+	text, err := template.render()
+	if err != nil {
+		return err.Error()
+	}
+
 	return text
 }
 
-func (d *owm) getResult() (*OWMDataResponse, error) {
-	apikey := d.props.getString(APIKEY, ".")
-	location := d.props.getString(LOCATION, "De Bilt,NL")
-	units := d.props.getString(UNITS, "standard")
-	timeout := d.props.getInt(HTTPTimeout, DefaultHTTPTimeout)
-	cachefile := d.props.getString(CACHEFILE, "")
-
-	if cachefile != "" {
-		stats, err := os.Stat(cachefile)
-		if err == nil {
-			if time.Since(stats.ModTime()).Minutes() < 10 {
-				cachedData, err := os.ReadFile(cachefile)
-				if err == nil {
-					q := new(OWMDataResponse)
-					err := json.Unmarshal(cachedData, q)
-					if err == nil {
-						return q, nil
-					}
-				}
+func (d *owm) getResult() (*owmDataResponse, error) {
+	cacheTimeout := int64(d.props.getInt(CacheTimeout, DefaultCacheTimeout))
+	response := new(owmDataResponse)
+	if cacheTimeout > 0 {
+		// check if data stored in cache
+		val, found := d.env.cache().get(CacheKeyResponse)
+		// we got something from te cache
+		if found {
+			err := json.Unmarshal([]byte(val), response)
+			if err != nil {
+				return nil, err
 			}
+			d.URL, _ = d.env.cache().get(CacheKeyURL)
+			return response, nil
 		}
 	}
 
-	url := fmt.Sprintf("http://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s", location, units, apikey)
-	body, err := d.env.doGet(url, timeout)
+	apikey := d.props.getString(APIKey, ".")
+	location := d.props.getString(Location, "De Bilt,NL")
+	units := d.props.getString(Units, "standard")
+	httpTimeout := d.props.getInt(HTTPTimeout, DefaultHTTPTimeout)
+	d.URL = fmt.Sprintf("http://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s", location, units, apikey)
+
+	body, err := d.env.doGet(d.URL, httpTimeout)
 	if err != nil {
-		return new(OWMDataResponse), err
+		return new(owmDataResponse), err
 	}
-	q := new(OWMDataResponse)
-	err = json.Unmarshal(body, &q)
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return new(owmDataResponse), err
+	}
+
+	if cacheTimeout > 0 {
+		// persist new forecasts in cache
+		d.env.cache().set(CacheKeyResponse, string(body), cacheTimeout)
+		d.env.cache().set(CacheKeyURL, d.URL, cacheTimeout)
+	}
+	return response, nil
+}
+
+func (d *owm) setStatus() error {
+	units := d.props.getString(Units, "standard")
+
+	q, err := d.getResult()
 	if err != nil {
 		return new(OWMDataResponse), err
 	}
@@ -117,7 +142,7 @@ func (d *owm) setStatus() error {
 		return err
 	}
 
-	d.temperature = q.temperature.Value
+	d.Temperature = q.temperature.Value
 	icon := ""
 	switch q.Data[0].TypeID {
 	case "01n":
@@ -157,8 +182,7 @@ func (d *owm) setStatus() error {
 	case "50d":
 		icon = "\ue313"
 	}
-	d.weather = icon
-	d.url = url
+	d.Weather = icon
 	d.units = units
 	return nil
 }

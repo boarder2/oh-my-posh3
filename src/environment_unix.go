@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/shirou/gopsutil/host"
 	terminal "github.com/wayneashleyberry/terminal-dimensions"
 )
 
@@ -35,5 +36,26 @@ func (env *environment) isWsl() bool {
 func (env *environment) getTerminalWidth() (int, error) {
 	defer env.tracer.trace(time.Now(), "getTerminalWidth")
 	width, err := terminal.Width()
+	if err != nil {
+		env.tracer.error(err.Error())
+	}
 	return int(width), err
+}
+
+func (env *environment) getPlatform() string {
+	p, _, _, _ := host.PlatformInformation()
+	return p
+}
+
+func (env *environment) getCachePath() string {
+	defer env.tracer.trace(time.Now(), "getCachePath")
+	// get XDG_CACHE_HOME if present
+	if cachePath := returnOrBuildCachePath(env.getenv("XDG_CACHE_HOME")); len(cachePath) != 0 {
+		return cachePath
+	}
+	// HOME cache folder
+	if cachePath := returnOrBuildCachePath(env.homeDir() + "/.cache"); len(cachePath) != 0 {
+		return cachePath
+	}
+	return env.homeDir()
 }

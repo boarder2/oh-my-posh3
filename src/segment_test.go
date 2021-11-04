@@ -81,22 +81,32 @@ func TestShouldIncludeFolder(t *testing.T) {
 		{Case: "Include Mismatch / Exclude Mismatch", IncludeFolders: []string{"zProjects.*"}, ExcludeFolders: []string{"Projects/nope"}, Expected: false},
 	}
 	for _, tc := range cases {
+		env := new(MockedEnvironment)
+		env.On("getRuntimeGOOS", nil).Return(linuxPlatform)
+		env.On("homeDir", nil).Return("")
+		env.On("getcwd", nil).Return(cwd)
 		segment := &Segment{
 			Properties: map[Property]interface{}{
 				IncludeFolders: tc.IncludeFolders,
 				ExcludeFolders: tc.ExcludeFolders,
 			},
+			env: env,
 		}
-		got := segment.shouldIncludeFolder(cwd)
+		got := segment.shouldIncludeFolder()
 		assert.Equal(t, tc.Expected, got, tc.Case)
 	}
 }
 
 func TestShouldIncludeFolderRegexInverted(t *testing.T) {
+	env := new(MockedEnvironment)
+	env.On("getRuntimeGOOS", nil).Return(linuxPlatform)
+	env.On("homeDir", nil).Return("")
+	env.On("getcwd", nil).Return(cwd)
 	segment := &Segment{
 		Properties: map[Property]interface{}{
 			ExcludeFolders: []string{"(?!Projects[\\/]).*"},
 		},
+		env: env,
 	}
 	// detect panic(thrown by MustCompile)
 	defer func() {
@@ -105,14 +115,19 @@ func TestShouldIncludeFolderRegexInverted(t *testing.T) {
 			assert.Equal(t, "regexp: Compile(`^(?!Projects[\\/]).*$`): error parsing regexp: invalid or unsupported Perl syntax: `(?!`", err)
 		}
 	}()
-	segment.shouldIncludeFolder(cwd)
+	segment.shouldIncludeFolder()
 }
 
 func TestShouldIncludeFolderRegexInvertedNonEscaped(t *testing.T) {
+	env := new(MockedEnvironment)
+	env.On("getRuntimeGOOS", nil).Return(linuxPlatform)
+	env.On("homeDir", nil).Return("")
+	env.On("getcwd", nil).Return(cwd)
 	segment := &Segment{
 		Properties: map[Property]interface{}{
 			ExcludeFolders: []string{"(?!Projects/).*"},
 		},
+		env: env,
 	}
 	// detect panic(thrown by MustCompile)
 	defer func() {
@@ -121,7 +136,7 @@ func TestShouldIncludeFolderRegexInvertedNonEscaped(t *testing.T) {
 			assert.Equal(t, "regexp: Compile(`^(?!Projects/).*$`): error parsing regexp: invalid or unsupported Perl syntax: `(?!`", err)
 		}
 	}()
-	segment.shouldIncludeFolder(cwd)
+	segment.shouldIncludeFolder()
 }
 
 func TestGetColors(t *testing.T) {

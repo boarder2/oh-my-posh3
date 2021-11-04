@@ -1,25 +1,26 @@
 # Powershell doesn't default to UTF8 just yet, so we're forcing it as there are too many problems
 # that pop up when we don't
-[console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
+if ($ExecutionContext.SessionState.LanguageMode -ne "ConstrainedLanguage") {
+    [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
+} elseif ($env:POSH_CONSTRAINED_LANGUAGE -ne 1) {
+    Write-Host "[WARNING] ConstrainedLanguage mode detected, unable to set console to UTF-8.
+When using PowerShell in ConstrainedLanguage mode, please set the
+console mode manually to UTF-8. See here for more information:
+https://ohmyposh.dev/docs/faq#powershell-running-in-constrainedlanguage-mode
+"
+}
 $env:POWERLINE_COMMAND = "oh-my-posh"
 $env:CONDA_PROMPT_MODIFIER = $false
 
 # specific module support (disabled by default)
-function Set-DefaultEnvValue {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]
-        $Name
-    )
-
-    $value = [System.Environment]::GetEnvironmentVariable($Name)
-    if ($value -eq $null) {
-        [System.Environment]::SetEnvironmentVariable($Name, $false)
-    }
+$omp_value = $env:AZ_ENABLED
+if ($null -eq $omp_value) {
+    $env:AZ_ENABLED = $false
 }
-Set-DefaultEnvValue("AZ_ENABLED")
-Set-DefaultEnvValue("POSH_GIT_ENABLED")
+$omp_value = $env:POSH_GIT_ENABLED
+if ($null -eq $omp_value) {
+    $env:POSH_GIT_ENABLED = $false
+}
 
 $global:PoshSettings = New-Object -TypeName PSObject -Property @{
     Theme     = "";
@@ -29,10 +30,13 @@ $global:PoshSettings = New-Object -TypeName PSObject -Property @{
 # used to detect empty hit
 $global:omp_lastHistoryId = -1
 
-$config = "::CONFIG::"
-if (Test-Path $config) {
-    $global:PoshSettings.Theme = (Resolve-Path -Path $config).ProviderPath
+$omp_config = "::CONFIG::"
+if (Test-Path $omp_config) {
+    $global:PoshSettings.Theme = (Resolve-Path -Path $omp_config).ProviderPath
 }
+
+Remove-Variable omp_value -Confirm:$false
+Remove-Variable omp_config -Confirm:$false
 
 function global:Set-PoshContext {}
 
@@ -50,16 +54,19 @@ function global:Initialize-ModuleSupport {
         $env:POSH_GIT_STATUS = Write-GitStatus -Status $global:GitStatus
     }
 
-    $env:AZ_SUBSCRIPTION_NAME = $null
+    $env:AZ_ENVIRONMENT_NAME = $null
+    $env:AZ_USER_NAME = $null
     $env:AZ_SUBSCRIPTION_ID = $null
+    $env:AZ_ACCOUNT_NAME = $null
 
     if ($env:AZ_ENABLED -eq $true) {
         try {
-            $subscription = Get-AzContext | Select-Object -ExpandProperty "Subscription" | Select-Object "Name", "Id", "Account"
-            if ($null -ne $subscription) {
-                $env:AZ_SUBSCRIPTION_NAME = $subscription.Name
-                $env:AZ_SUBSCRIPTION_ID = $subscription.Id
-                $env:AZ_SUBSCRIPTION_ACCOUNT = $subscription.Account
+            $context = Get-AzContext
+            if ($null -ne $context) {
+                $env:AZ_ENVIRONMENT_NAME = $context.Environment.Name
+                $env:AZ_USER_NAME = $context.Account.Id
+                $env:AZ_SUBSCRIPTION_ID = $context.Subscription.Id
+                $env:AZ_ACCOUNT_NAME = $context.Subscription.Name
             }
         }
         catch {}
@@ -185,16 +192,22 @@ function global:Export-PoshImage {
         $CursorPadding = 30,
         [Parameter(Mandatory = $false)]
         [string]
-        $Author
+        $Author,
+        [Parameter(Mandatory = $false)]
+        [string]
+        $BGColor
     )
 
     if ($Author) {
         $Author = "--author=$Author"
     }
+    if ($BGColor) {
+        $BGColor = "--bg-color=$BGColor"
+    }
 
     $omp = "::OMP::"
     $config, $cleanPWD, $cleanPSWD = Get-PoshContext
-    $standardOut = @(&$omp --config="$config" --pwd="$cleanPWD" --pswd="$cleanPSWD" --export-png --rprompt-offset="$RPromptOffset" --cursor-padding="$CursorPadding" $Author 2>&1)
+    $standardOut = @(&$omp --shell=shell --config="$config" --pwd="$cleanPWD" --pswd="$cleanPSWD" --export-png --rprompt-offset="$RPromptOffset" --cursor-padding="$CursorPadding" $Author $BGColor 2>&1)
     $standardOut -join "`n"
 }
 

@@ -649,6 +649,106 @@
       "contributions": [
         "design"
       ]
+    },
+    {
+      "login": "asherber",
+      "name": "Aaron Sherber",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5248041?v=4",
+      "profile": "https://github.com/asherber",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "SeanKilleen",
+      "name": "Sean Killeen",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2148318?v=4",
+      "profile": "http://SeanKilleen.com",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "NickCraver",
+      "name": "Nick Craver",
+      "avatar_url": "https://avatars.githubusercontent.com/u/454813?v=4",
+      "profile": "https://nickcraver.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "justin-vogt",
+      "name": "Justin Vogt",
+      "avatar_url": "https://avatars.githubusercontent.com/u/84424169?v=4",
+      "profile": "https://github.com/justin-vogt",
+      "contributions": [
+        "design"
+      ]
+    },
+    {
+      "login": "TheOnlyTails",
+      "name": "TheOnlyTails",
+      "avatar_url": "https://avatars.githubusercontent.com/u/65342367?v=4",
+      "profile": "http://theonlytails.com",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "bewing",
+      "name": "bewing",
+      "avatar_url": "https://avatars.githubusercontent.com/u/4759896?v=4",
+      "profile": "https://github.com/bewing",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "shawnwildermuth",
+      "name": "Shawn Wildermuth",
+      "avatar_url": "https://avatars.githubusercontent.com/u/568272?v=4",
+      "profile": "http://wildermuth.com",
+      "contributions": [
+        "doc",
+        "code"
+      ]
+    },
+    {
+      "login": "onpikono",
+      "name": "Ondrej Pinka",
+      "avatar_url": "https://avatars.githubusercontent.com/u/25362465?v=4",
+      "profile": "https://github.com/onpikono",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "kasuken",
+      "name": "Emanuele Bartolesi",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2757486?v=4",
+      "profile": "https://www.emanuelebartolesi.com",
+      "contributions": [
+        "design"
+      ]
+    },
+    {
+      "login": "qiansen1386",
+      "name": "Paris Qian",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1759658?v=4",
+      "profile": "https://qiansen1386.github.io",
+      "contributions": [
+        "design"
+      ]
+    },
+    {
+      "login": "tjackadams",
+      "name": "Thomas Adams",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2307314?v=4",
+      "profile": "https://blog.itadams.co.uk",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

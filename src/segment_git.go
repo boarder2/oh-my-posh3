@@ -128,13 +128,17 @@ const (
 )
 
 func (g *git) enabled() bool {
-	if !g.env.hasCommand("git") {
+	if !g.env.hasCommand(g.getGitCommand()) {
 		return false
 	}
 	gitdir, err := g.env.hasParentFilePath(".git")
 	if err != nil {
 		return false
 	}
+	if g.shouldIgnoreRootRepository(gitdir.parentFolder) {
+		return false
+	}
+
 	g.repo = &gitRepo{}
 	if gitdir.isDir {
 		g.repo.gitWorkingFolder = gitdir.path
@@ -157,6 +161,18 @@ func (g *git) enabled() bool {
 		return true
 	}
 	return false
+}
+
+func (g *git) shouldIgnoreRootRepository(rootDir string) bool {
+	if g.props == nil || g.props.values == nil {
+		return false
+	}
+	value, ok := g.props.values[ExcludeFolders]
+	if !ok {
+		return false
+	}
+	excludedFolders := parseStringArray(value)
+	return dirMatchesOneOf(g.env, rootDir, excludedFolders)
 }
 
 func (g *git) string() string {
@@ -304,7 +320,7 @@ func (g *git) getStatusColor(defaultValue string) string {
 	return defaultValue
 }
 
-func (g *git) getGitCommandOutput(args ...string) string {
+func (g *git) getGitCommand() string {
 	inWSLSharedDrive := func(env environmentInfo) bool {
 		return env.isWsl() && strings.HasPrefix(env.getcwd(), "/mnt/")
 	}
@@ -312,8 +328,12 @@ func (g *git) getGitCommandOutput(args ...string) string {
 	if g.env.getRuntimeGOOS() == windowsPlatform || inWSLSharedDrive(g.env) {
 		gitCommand = "git.exe"
 	}
+	return gitCommand
+}
+
+func (g *git) getGitCommandOutput(args ...string) string {
 	args = append([]string{"--no-optional-locks", "-c", "core.quotepath=false", "-c", "color.status=false"}, args...)
-	val, _ := g.env.runCommand(gitCommand, args...)
+	val, _ := g.env.runCommand(g.getGitCommand(), args...)
 	return val
 }
 
@@ -350,10 +370,20 @@ func (g *git) getGitHEADContext(ref string) string {
 	if g.hasGitFile("MERGE_MSG") && g.hasGitFile("MERGE_HEAD") {
 		icon := g.props.getString(MergeIcon, "\uE727 ")
 		mergeContext := g.getGitFileContents(g.repo.gitWorkingFolder, "MERGE_MSG")
-		matches := findNamedRegexMatch(`Merge branch '(?P<head>.*)' into`, mergeContext)
+		matches := findNamedRegexMatch(`Merge (?P<type>(remote-tracking )?branch|commit|tag) '(?P<head>.*)' into`, mergeContext)
+
 		if matches != nil && matches["head"] != "" {
-			branch := g.truncateBranch(matches["head"])
-			return fmt.Sprintf("%s%s%s into %s", icon, branchIcon, branch, ref)
+			var headIcon string
+			switch matches["type"] {
+			case "tag":
+				headIcon = g.props.getString(TagIcon, "\uF412")
+			case "commit":
+				headIcon = g.props.getString(CommitIcon, "\uF417")
+			default:
+				headIcon = branchIcon
+			}
+			head := g.truncateBranch(matches["head"])
+			return fmt.Sprintf("%s%s%s into %s", icon, headIcon, head, ref)
 		}
 	}
 	// sequencer status
