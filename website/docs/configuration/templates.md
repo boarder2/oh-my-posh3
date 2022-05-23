@@ -1,0 +1,133 @@
+---
+id: templates
+title: Templates
+sidebar_label: Templates
+---
+
+Every segment has a `template` property to tweak the text that is displayed.
+Under the hood, this uses go's [text/template][go-text-template] feature extended with [sprig][sprig] and
+offers a few standard properties to work with.
+
+## Global properties
+
+- `.Root`: `boolean` - is the current user root/admin or not
+- `.PWD`: `string` - the current working directory
+- `.Folder`: `string` - the current working folder
+- `.Shell`: `string` - the current shell name
+- `.ShellVersion`: `string` - the current shell version
+- `.UserName`: `string` - the current user name
+- `.HostName`: `string` - the host name
+- `.Code`: `int` - the last exit code
+
+## Environment variables
+
+- `.Env.VarName`: `string` - Any environment variable where `VarName` is the environment variable name
+
+:::tip
+If you're using PowerShell, you can override a function to populate environment variables before the
+prompt is rendered.
+
+```powershell
+function Set-EnvVar {
+    $env:POSH=$(Get-Date)
+}
+New-Alias -Name 'Set-PoshContext' -Value 'Set-EnvVar' -Scope Global -Force
+```
+
+:::
+
+## Template logic
+
+<!-- markdownlint-disable MD013 -->
+| Template                                                             | Description                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{{.}}`                                                              | Root element.                                                                                                                                                                                                                                                                                                   |
+| `{{.Var}}`                                                           | Variable in a struct, where Var is a variable.                                                                                                                                                                                                                                                                  |
+| `{{- .Var -}}`                                                       | Remove extra white space surrounding the .Var variable and remove the newline. Either side is fine too.                                                                                                                                                                                                         |
+| `{{ $planet := "Earth"}}`                                            | `{{ $planet }}` Store a value in a custom variable to reference later. Note that .$ is used to reference the global/parent context, like in the full example below with $.                                                                                                                                      |
+| `Hi {{if .Name}} {{.Name}} {{else}} visitor {{end}}`                 | If-else statement. If will will evaluate whether or not the argument is empty. Using the elseif conditional is also an option. The not negation is available too.                                                                                                                                               |
+| `{{if and .Arg1 .Arg2}} both complete. {{else}} incomplete. {{end}}` | The and function compares multiple arguments to return the boolean AND (if arg1 then arg2 else arg1). Both arguments are evaluated. The or function compares multiple arguments to return the boolean OR. Similar to if arg1 then arg1 else arg2, so arg2 will never be evaluated if arg1 is false (not empty). |
+| `{{with .Var}} {{end}}`                                              | With statement, where Var is a variable. It skips the block if the variable is absent.                                                                                                                                                                                                                          |
+| `{{range .Array}} {{end}}`                                           | Range statement, where Array is an array, slice, map, or channel.                                                                                                                                                                                                                                               |
+| `{{ lt 3 4 }}`                                                       | This lt comparison function evaluates to true since 3 is less than 4 (other boolean operators: eq, ne, lt, le, gt, ge).                                                                                                                                                                                         |
+<!-- markdownlint-enable MD013 -->
+
+## Helper functions
+
+### Sprig
+
+Oh My Posh has all [sprig][sprig] functions included, meaning you can do operations on strings, paths and a lot of other
+manipulations straight from your template. Have a look at [their documentation][sprig] for available options and how to
+use them.
+
+### Custom
+
+<!-- markdownlint-disable MD013 -->
+| Template                                       | Description                                                                                                        |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `{{ url .UpstreamIcon .UpstreamURL }}`         | Create a hyperlink to a website to open your default browser (needs terminal [support][terminal-list-hyperlinks]). |
+| `{{ path .Path .Location }}`                   | Create a link to a folder to open your file explorer (needs terminal [support][terminal-list-hyperlinks]).         |
+| `{{ secondsRound 3600 }}`                      | Round seconds to a time indication. In this case the output is `1h`.                                               |
+| `{{ if glob "*.go" }}OK{{ else }}NOK{{ end }}` | Exposes [filepath.Glob][glob] as a boolean template function.                                                      |
+<!-- markdownlint-enable MD013 -->
+
+## Cross segment template properties
+
+To use another segment's template properties in a template, you can make use of `{{ .Segments.Segment }}`
+in your template where `.Segment` is the name of the segment you want to use with the first letter uppercased.
+
+If you want to for example use the [git][git] segment's `.UpstreamGone` property in the [exit][exit] segment, you can
+do so like this:
+
+```json
+"template": " {{ if .Segments.Git.UpstreamGone }}\uf7d3{{ else if gt .Code 0 }}\uf00d{{ else }}\uf00c{{ end }} "
+```
+
+:::warning
+For this to work, the segment you refer to needs to be in your config. The above example won't work if
+your config does not contain a git segment as Oh My Posh only populates the properties when it needs to.
+:::
+
+## Text decoration
+
+You can make use of the following syntax to decorate text:
+
+- `<b>bold</b>`: renders `bold` as bold text
+- `<u>underline</u>`: renders `underline` as underlined text
+- `<o>overline</o>`: renders `overline` as overlined text
+- `<i>italic</i>`: renders `italic` as italic text
+- `<s>strikethrough</s>`: renders `strikethrough` as strikethrough text
+- `<d>dimmed</d>`: renders `dimmed` as dimmed text
+- `<f>blink</f>`: renders `blink` as blinking (flashing) text
+- `<r>reversed</r>`: renders `reversed` as reversed text
+
+This can be used in templates and icons/text inside your config.
+
+## Hiding segments
+
+To hide a whole segment including the leading and trailing symbol based on a template, the template must render into
+an empty string. This can be achieved with conditional statements (`if`). The example below will render a diamond
+segment, only if the environment variable `POSH_ENV` is not empty.
+
+Only spaces are excluded, meaning you can still add line breaks and tabs if that is something you're after.
+
+```json
+{
+  "type": "text",
+  "style": "diamond",
+  "leading_diamond": " \ue0b6",
+  "trailing_diamond": "\ue0b4",
+  "foreground": "#ffffff",
+  "background": "#d53c14",
+  "template": "{{ if .Env.POSH_ENV }} \uf8c5 {{ .Env.POSH_ENV }} {{ end }}"
+}
+```
+
+[terminal-list-hyperlinks]: https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+[path-segment]: /docs/path
+[git-segment]: /docs/git
+[go-text-template]: https://golang.org/pkg/text/template/
+[sprig]: https://masterminds.github.io/sprig/
+[glob]: https://pkg.go.dev/path/filepath#Glob
+[git]: /docs/segments/git
+[exit]: /docs/segments/exit

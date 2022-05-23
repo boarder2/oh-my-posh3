@@ -2,80 +2,64 @@
   "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
   "blocks": [
     {
-      "type": "prompt",
       "alignment": "left",
       "segments": [
         {
-          "type": "root",
-          "style": "plain",
           "background": "#E0E0E0",
-          "foreground": "#BF231D"
+          "foreground": "#BF231D",
+          "style": "plain",
+          "template": " \uf0e7 ",
+          "type": "root"
         },
         {
-          "type": "os",
-          "style": "plain",
           "background": "#E0E0E0",
           "foreground": "#EF7D00",
-          "properties": {
-            "wsl": "",
-            "wsl_separator": "",
-            "prefix": " ",
-            "postfix": " "
-
-          }
+          "style": "plain",
+          "template": " {{ .Icon }} ",
+          "type": "os"
         },
         {
-          "type": "session",
-          "style": "plain",
           "background": "#E0E0E0",
           "foreground": "#424242",
-          "properties": {
-            "display_host": false,
-            "prefix": "",
-            "postfix": ""
-          }
-        },        
+          "style": "plain",
+          "template": "{{ .UserName }}",
+          "type": "session"
+        },
         {
-          "type": "git",
-          "style": "plain",
           "background": "#E0E0E0",
           "foreground": "#424242",
+          "foreground_templates": [
+            "{{ if or (.Working.Changed) (.Staging.Changed) }}#053F22{{ end }}",
+            "{{ if or (gt .Ahead 0) (gt .Behind 0) }}#0A703E{{ end }}"
+          ],
           "properties": {
-            "display_stash_count": false,
             "branch_max_length": 30,
-            "display_upstream_icon": true,
-            "display_status": true,
-            "status_colors_enabled": true,
-            "color_background": false,
-            "local_changes_color": "#053F22",
-            "working_color": "#BD6200",
-            "staging_color": "#053F22",
-            "ahead_color": "#0A703E",
-            "behind_color": "#0A703E",
-            "prefix": " [",
-            "postfix": "] "
-          }
+            "fetch_status": true,
+            "fetch_upstream_icon": true
+          },
+          "style": "plain",
+          "template": " [{{ .UpstreamIcon }}{{ .HEAD }}{{ .BranchStatus }}{{ if .Working.Changed }}<#BD6200> \uf044 {{ .Working.String }}</>{{ end }}{{ if and (.Working.Changed) (.Staging.Changed) }} |{{ end }}{{ if .Staging.Changed }}<#053F22> \uf046 {{ .Staging.String }}</>{{ end }}] ",
+          "type": "git"
         },
         {
-          "type": "path",
-          "style": "plain",
           "background": "#E0E0E0",
           "foreground": "#424242",
           "properties": {
-            "style": "full",
-            "postfix": ""
-          }
+            "style": "full"
+          },
+          "style": "plain",
+          "template": " {{ .Path }}",
+          "type": "path"
         },
         {
-          "type": "text",
-          "style": "plain",
           "foreground": "#E0E0E0",
-          "properties": {
-            "prefix": "",
-            "text": "\uE0B0"
-          }
+          "style": "plain",
+          "template": "\ue0b0 ",
+          "type": "text"
         }
-      ]
+      ],
+      "type": "prompt"
     }
-  ]
+  ],
+  "version": 2
 }

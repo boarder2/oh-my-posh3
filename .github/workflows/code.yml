@@ -4,7 +4,7 @@ on:
       - 'README.md'
       - 'CONTRIBUTING.md'
       - 'COPYING'
-      - 'docs/**'
+      - 'website/**'
       - '.github/*.md'
       - '.github/FUNDING.yml'
 
@@ -22,7 +22,7 @@ jobs:
     - name: Install Go
       uses: actions/setup-go@v2
       with:
-        go-version: 1.17
+        go-version: 1.18
     - name: Checkout code
       uses: actions/checkout@v2
     - name: Golang CI
@@ -31,4 +31,4 @@ jobs:
         version: latest
         working-directory: src
     - name: Unit Tests
-      run: go test . -v
+      run: go test -v ./...

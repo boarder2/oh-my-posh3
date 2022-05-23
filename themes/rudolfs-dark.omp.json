@@ -2,83 +2,64 @@
   "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
   "blocks": [
     {
-      "type": "prompt",
       "alignment": "left",
       "segments": [
         {
-          "type": "root",
-          "style": "plain",
+          "background": "#BF231D",
           "foreground": "#ffffff",
-          "background": "#BF231D"
+          "style": "plain",
+          "template": " \uf0e7 ",
+          "type": "root"
         },
         {
-          "type": "os",
-          "style": "plain",
           "background": "#0A703E",
           "foreground": "#ffffff",
-          "properties": {
-            "wsl": "",
-            "wsl_separator": "",
-            "prefix": " ",
-            "postfix": " "
-
-          }
+          "style": "plain",
+          "template": " {{ .Icon }} ",
+          "type": "os"
         },
         {
-          "type": "session",
-          "style": "plain",
           "background": "#0A703E",
           "foreground": "#ffffff",
-          "properties": {
-            "display_host": false,
-            "prefix": "",
-            "postfix": " "
-          }
+          "style": "plain",
+          "template": "{{ .UserName }} ",
+          "type": "session"
         },
         {
-          "type": "path",
-          "style": "plain",
-          "foreground": "#ffffff",
           "background": "#256C9D",
+          "foreground": "#ffffff",
           "properties": {
+            "folder_icon": "\uf115",
+            "folder_separator_icon": " \ue0b1 ",
             "max_depth": 2,
-            "folder_icon": "\uF115",
-            "folder_separator_icon": " \uE0B1 ",
-            "style": "agnoster_short",
-            "postfix": " "
-          }
+            "style": "agnoster_short"
+          },
+          "style": "plain",
+          "template": " {{ .Path }} ",
+          "type": "path"
         },
         {
-          "type": "git",
-          "style": "plain",
-          "foreground": "#ffffff",
           "background": "#256C9D",
+          "foreground": "#ffffff",
           "properties": {
             "branch_max_length": 30,
-            "display_stash_count": false,
-            "display_upstream_icon": true,
-            "display_status": true,
-            "status_colors_enabled": false,
-            "color_background": true,
-            "local_changes_color": "#ffffff",
-            "working_color": "#ffffff",
-            "staging_color": "#ffffff",
-            "ahead_color": "#ffffff",
-            "behind_color": "#ffffff",
-            "prefix": "[ ",
-            "postfix": " ]"
-          }
+            "fetch_stash_count": false,
+            "fetch_status": true,
+            "fetch_upstream_icon": true
+          },
+          "style": "plain",
+          "template": "[ {{ .UpstreamIcon }}{{ .HEAD }}{{ .BranchStatus }}{{ if .Working.Changed }} \uf044 {{ .Working.String }}{{ end }}{{ if and (.Working.Changed) (.Staging.Changed) }} |{{ end }}{{ if .Staging.Changed }} \uf046 {{ .Staging.String }}{{ end }}{{ if gt .StashCount 0 }} \uf692 {{ .StashCount }}{{ end }} ]",
+          "type": "git"
         },
         {
-          "type": "text",
-          "style": "plain",
           "foreground": "#256C9D",
-          "properties": {
-            "prefix": "",
-            "text": "\uE0B0"
-          }
+          "style": "plain",
+          "template": "\ue0b0 ",
+          "type": "text"
         }
-      ]
+      ],
+      "type": "prompt"
     }
-  ]
+  ],
+  "version": 2
 }

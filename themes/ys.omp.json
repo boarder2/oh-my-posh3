@@ -1,107 +1,85 @@
 {
-    "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
-    "blocks": [
-      {
-        "type": "prompt",
-        "alignment": "left",
-        "segments": [
-          {
-            "type": "python",
-            "style": "plain",
-            "foreground": "white",
-            "properties": {
-              "prefix": "(",
-              "postfix": ")",
-              "display_version": false
-            }
-          }
-        ]
-      },
-      {
-        "type": "prompt",
-        "alignment": "left",
-        "newline": true,
-        "segments": [
-          {
-            "type": "text",
-            "style": "plain",
-            "foreground": "lightBlue",
-            "properties": {
-              "prefix": "",
-              "text": "#"
-            }
+  "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
+  "blocks": [
+    {
+      "alignment": "left",
+      "segments": [
+        {
+          "foreground": "white",
+          "properties": {
+            "fetch_version": false
           },
-          {
-            "type": "root",
-            "style": "plain",
-            "foreground": "red",
-            "properties": {
-              "root_icon": "%"
-            }
+          "style": "plain",
+          "template": "({{ if .Error }}{{ .Error }}{{ else }}{{ if .Venv }}{{ .Venv }} {{ end }}{{ .Full }}{{ end }})",
+          "type": "python"
+        }
+      ],
+      "type": "prompt"
+    },
+    {
+      "alignment": "left",
+      "newline": true,
+      "segments": [
+        {
+          "foreground": "lightBlue",
+          "style": "plain",
+          "template": "# ",
+          "type": "text"
+        },
+        {
+          "foreground": "red",
+          "style": "plain",
+          "template": " % ",
+          "type": "root"
+        },
+        {
+          "style": "plain",
+          "template": "<cyan>{{ .UserName }}</> <darkGray>@</> <green>{{ .HostName }}</> ",
+          "type": "session"
+        },
+        {
+          "foreground": "lightYellow",
+          "properties": {
+            "style": "full"
           },
-          {
-            "type": "session",
-            "style": "plain",
-            "properties": {
-              "user_info_separator": " <darkGray>@</> ",
-              "prefix": "",
-              "user_color": "cyan",
-              "host_color": "green"
-            }
-          },
-          {
-            "type": "path",
-            "style": "plain",
-            "foreground": "lightYellow",
-            "properties": {
-              "prefix": "<darkGray>in </>",
-              "style": "full"
-            }
-          },
-          {
-            "type": "git",
-            "style": "plain",
-            "properties": {
-              "prefix": "<darkGray>on</> <white>git:</>"
-            }
-          },
-          {
-            "type": "time",
-            "style": "plain",
-            "foreground": "darkGray",
-            "properties": {
-              "prefix": "[",
-              "postfix": "]"
-            }
-          },
-          {
-            "type": "exit",
-            "style": "plain",
-            "foreground": "red",
-            "properties": {
-              "prefix": " C:",
-              "always_numeric": true
-            }
-          }
-        ]
-      },
-      {
-        "type": "prompt",
-        "alignment": "left",
-        "newline": true,
-        "segments": [
-          {
-            "type": "text",
-            "style": "plain",
-            "foreground": "lightRed",
-            "properties": {
-              "prefix": "",
-              "text": "$",
-              "postfix": ""
-            }
-          }
-        ]
-      }
-    ],
-    "final_space": true
-  }
+          "style": "plain",
+          "template": "<darkGray>in </>{{ .Path }} ",
+          "type": "path"
+        },
+        {
+          "style": "plain",
+          "template": "<darkGray>on</> <white>git:</>{{ .HEAD }} ",
+          "type": "git"
+        },
+        {
+          "foreground": "darkGray",
+          "style": "plain",
+          "template": "[{{ .CurrentDate | date .Format }}]",
+          "type": "time"
+        },
+        {
+          "foreground": "red",
+          "style": "plain",
+          "template": " C:{{ if gt .Code 0 }}{{ .Code }}{{ end }} ",
+          "type": "exit"
+        }
+      ],
+      "type": "prompt"
+    },
+    {
+      "alignment": "left",
+      "newline": true,
+      "segments": [
+        {
+          "foreground": "lightRed",
+          "style": "plain",
+          "template": "$",
+          "type": "text"
+        }
+      ],
+      "type": "prompt"
+    }
+  ],
+  "final_space": true,
+  "version": 2
+}

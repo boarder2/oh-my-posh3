@@ -7,13 +7,12 @@
         {
           "background": "#EB9654",
           "foreground": "#ffffff",
-          "leading_diamond": "",
+          "leading_diamond": "\ue0b6",
           "properties": {
-            "display_host": false,
-            "prefix": ""
+            "display_host": false
           },
           "style": "diamond",
-          "trailing_diamond": "",
+          "template": "{{ if .SSHSession }}\uf817 {{ end }}{{ .UserName }} ",
           "type": "session"
         },
         {
@@ -23,30 +22,31 @@
             "style": "full"
           },
           "style": "plain",
+          "template": " {{ .Path }} ",
           "type": "path"
         },
         {
           "background": "#25AFF3",
           "foreground": "#ffffff",
           "properties": {
-            "display_status": true,
-            "postfix": ") ",
-            "prefix": " branch ("
+            "fetch_status": true
           },
           "style": "plain",
+          "template": " branch ({{ .HEAD }}{{ if .Staging.Changed }} \uf046 {{ .Staging.String }}{{ end }}{{ if and (.Working.Changed) (.Staging.Changed) }} |{{ end }}{{ if .Working.Changed }} \uf044 {{ .Working.String }}{{ end }}) ",
           "type": "git"
         },
         {
-          "type": "spotify",
-          "style": "plain",
-          "foreground": "#ffffff",
           "background": "#1BD760",
+          "foreground": "#ffffff",
           "properties": {
-            "track_separator" : " - ",
+            "paused_icon": "",
             "playing_icon": "",
             "stopped_icon": "",
-            "paused_icon": ""
-          }
+            "track_separator": " - "
+          },
+          "style": "plain",
+          "template": " {{ .Icon }}{{ if ne .Status \"stopped\" }}{{ .Artist }} - {{ .Track }}{{ end }} ",
+          "type": "spotify"
         },
         {
           "background": "#cc00ff",
@@ -55,12 +55,14 @@
             "time_format": "15:04:05"
           },
           "style": "diamond",
-          "trailing_diamond": "",
+          "template": " {{ .CurrentDate | date .Format }} ",
+          "trailing_diamond": "\ue0b0",
           "type": "time"
         }
       ],
       "type": "prompt"
     }
   ],
-  "final_space": true
+  "final_space": true,
+  "version": 2
 }
